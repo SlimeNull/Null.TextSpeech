@@ -1,11 +1,13 @@
-﻿using NullLib.CommandLine;
+﻿using Microsoft.CognitiveServices.Speech;
+using NullLib.CommandLine;
+using NullLib.ConsoleEx;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 
 namespace Null.TextSpeech
 {
-    public class AppCommands : CommandHome
+    public class AppCommands : CommandHome    // 这里是程序支持的指令
     {
         [Command]
         public string? ShowLang()
@@ -152,6 +154,34 @@ namespace Null.TextSpeech
             }
             catch { return false; }
         }
+
+        [Command(CommandAlias = "<")]
+        public string? CapVoice()
+        {
+            using SpeechRecognizer recognizer = new SpeechRecognizer(Program.SpeechConfig);
+            SpeechRecognitionResult result = recognizer.RecognizeOnceAsync().Result;
+            return result.Text;
+        }
+
+        [Command(CommandAlias = "<<")]
+        public bool CapAllVoice()
+        {
+            try
+            {
+                using SpeechRecognizer recognizer = new SpeechRecognizer(Program.SpeechConfig);
+                recognizer.Recognizing += (s, e) => Console.WriteLine(e.Result.Text);
+                recognizer.Recognized += (s, e) => Console.WriteLine(e.Result.Text);
+                _ = recognizer.StartContinuousRecognitionAsync();
+                Console.ReadKey();
+                recognizer.StopKeywordRecognitionAsync();
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         [Command]
         public void Exit()
         {

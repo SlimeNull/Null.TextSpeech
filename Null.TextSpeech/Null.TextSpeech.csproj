@@ -11,6 +11,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.CognitiveServices.Speech" Version="1.19.0" />
     <PackageReference Include="NullLib.CommandLine" Version="1.1.0.2" />
+    <PackageReference Include="NullLib.ConsoleEx" Version="1.0.4.3" />
     <PackageReference Include="System.Speech" Version="6.0.0" />
   </ItemGroup>
 

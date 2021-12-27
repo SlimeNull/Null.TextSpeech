@@ -30,10 +30,9 @@ namespace Null.TextSpeech
         public static string AppConfigPath = "AppConfig.json";
         public static AppConfig? AppConfig;
         public static SpeechConfig? SpeechConfig;
-        public static SpeechSynthesizer? SpeechSynthesizer;
         private static bool networkAvailable = true;
 
-        public static CommandObject<AppCommands> AppCommands { get; } = new CommandObject<AppCommands>();
+        public static CommandObject<AppCommands> AppCommands { get; } = new CommandObject<AppCommands>();  // 因为这个 CommandObject 的泛型参数是 AppCommands 类, 所以调用的方法也是在这个类中定义的
 
         public static bool NetworkAvailable
         {
@@ -76,13 +75,10 @@ namespace Null.TextSpeech
         }
         public static void InitSpeech()
         {
-            if (SpeechSynthesizer != null)
-                SpeechSynthesizer.Dispose();
-
             SpeechConfig = SpeechConfig.FromSubscription(AppConfig?.Subcription?.ApiKey, AppConfig?.Subcription?.Region);
             SpeechConfig.SpeechSynthesisLanguage = AppConfig?.TextSpeech.CurLang;
             SpeechConfig.SpeechSynthesisVoiceName = AppConfig?.TextSpeech.CurVoice;
-            SpeechSynthesizer = new SpeechSynthesizer(SpeechConfig);
+            SpeechConfig.SpeechRecognitionLanguage = AppConfig?.TextSpeech.CurLang;
         }
         public static async Task CheckNetwork()
         {
@@ -96,6 +92,19 @@ namespace Null.TextSpeech
             catch { NetworkAvailable = false; }
         }
 
+
+#if DEBUG
+
+        public static async Task<string?> SpeechRecognizeTest()
+        {
+            Console.WriteLine("Start recognizing");
+            SpeechRecognizer speechRecognizer = new SpeechRecognizer(SpeechConfig);
+            SpeechRecognitionResult rst = await speechRecognizer.RecognizeOnceAsync();
+            return rst.Text;
+        }
+        
+#endif
+
         public static void SpeakText(string text)
         {
 #if DEBUG
@@ -103,27 +112,25 @@ namespace Null.TextSpeech
 #endif
             if (NetworkAvailable)
             {
-                if (SpeechSynthesizer != null)
+                Task.Run(async () =>
                 {
-                    Task.Run(async () =>
+                    using SpeechSynthesizer speechSynthesizer = new SpeechSynthesizer(SpeechConfig);
+                    using SpeechSynthesisResult? result = await speechSynthesizer.SpeakTextAsync(text);
+                    if (result?.Reason != ResultReason.SynthesizingAudioCompleted)
                     {
-                        using SpeechSynthesisResult? result = await SpeechSynthesizer.SpeakTextAsync(text);
-                        if (result?.Reason != ResultReason.SynthesizingAudioCompleted)
+                        if (result?.Reason == ResultReason.Canceled)
                         {
-                            if (result?.Reason == ResultReason.Canceled)
-                            {
-                                var cancellation = SpeechSynthesisCancellationDetails.FromResult(result);
-                                Console.Error.WriteLine($"CANCELED: Reason={cancellation.Reason}");
+                            var cancellation = SpeechSynthesisCancellationDetails.FromResult(result);
+                            Console.Error.WriteLine($"CANCELED: Reason={cancellation.Reason}");
 
-                                if (cancellation.Reason == CancellationReason.Error)
-                                {
-                                    Console.Error.WriteLine($"CANCELED: ErrorCode={cancellation.ErrorCode}");
-                                    Console.Error.WriteLine($"CANCELED: ErrorDetails=[{cancellation.ErrorDetails}]");
-                                }
+                            if (cancellation.Reason == CancellationReason.Error)
+                            {
+                                Console.Error.WriteLine($"CANCELED: ErrorCode={cancellation.ErrorCode}");
+                                Console.Error.WriteLine($"CANCELED: ErrorDetails=[{cancellation.ErrorDetails}]");
                             }
                         }
-                    });
-                }
+                    }
+                });
             }
             else
             {
@@ -144,6 +151,10 @@ namespace Null.TextSpeech
 
         static void Main(string[] args)
         {
+#if DEBUG
+            string? rrst = SpeechRecognizeTest().GetAwaiter().GetResult();
+            Console.WriteLine(rrst);
+#endif
             while (true)
             {
                 Console.Write(">>> ");
@@ -152,7 +163,7 @@ namespace Null.TextSpeech
                 {
                     if (text.StartsWith('/'))
                     {
-                        if (AppCommands.TryExecuteCommand(text[1..], true, out object rst))
+                        if (AppCommands.TryExecuteCommand(text[1..], true, out object rst))   // 执行指令
                         {
                             if (rst != null)
                                 Console.WriteLine(JsonSerializer.Serialize(rst, StdoJsonOption));
